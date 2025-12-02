@@ -57,14 +57,20 @@ The project includes:
 
 - Python 3.11+
 - [uv](https://github.com/astral-sh/uv) - Fast Python package installer and resolver
+- [Node.js 18+](https://nodejs.org/) and npm (required for Claude Code CLI)
 - Docker (for containerization)
-- AWS account access with Bedrock AgentCore permissions
+- AWS CLI configured (`aws configure`) with Bedrock AgentCore permissions
 - Enable access to Claude models via Amazon Bedrock console
-- Claude Code CLI is a dependency for Claude Agent SDK to work. This is installed via Node.js and npm.
 
 ## Setup
 
-### 1. Install uv (if not installed)
+### 1. Clone the repository
+```bash
+git clone https://github.com/talchaimdamri/agentcore-demo.git
+cd agentcore-demo
+```
+
+### 2. Install uv (if not installed)
 ``` bash
 # macOS/Linux
 curl -LsSf https://astral.sh/uv/install.sh | sh
@@ -76,14 +82,20 @@ powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
 pip install uv
 ```
 
-### 2. Setup virtual env
+### 3. Setup virtual environment
 ```bash
 # Create and activate a virtual environment. pyproject.toml is provided for you.
 uv sync
 source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 ```
 
-### 2. Deploy to AgentCore using AgentCore Starter Toolkit
+### 4. Install Playwright (for browser automation)
+```bash
+# Install Playwright browser
+playwright install chromium
+```
+
+### 5. Deploy to AgentCore using AgentCore Starter Toolkit
 ```bash
 # Configure agent for deployment
 agentcore configure --entrypoint agent.py --name claude_ci_agent --disable-memory
@@ -107,7 +119,7 @@ agentcore launch
 
 **Note**: The starter toolkit automatically creates a Dockerfile and deploys agents to AgentCore Runtime. Since this example requires the Claude Code CLI as a dependency, we override with our own Dockerfile that has the added npm installation.
 
-### 3. Test your agent
+### 6. Test your agent
 
 Use toolkit command to test agent. 
 ```bash
@@ -129,8 +141,12 @@ For the above prompt, the agent will
 uv run test_scripts/invoke_agent.py
 ```
 
-**Note**: Change the `agent_arn` variable to your deployed agent arn in invoke_agent.py before running the script. 
+**Note**: Change the `agent_arn` variable to your deployed agent arn in invoke_agent.py before running the script.
 
+#### Test Browser Automation
+```bash
+agentcore invoke '{"prompt":"Go to example.com and take a screenshot of the page"}'
+```
 
 ## What It Does
 
@@ -138,7 +154,7 @@ You can use the agent to:
 - Maintain an isolated Code Interpreter session
 - Transfer files to the session
 - Execute Python code within the session
-- Execute bash commans
+- Execute bash commands
 
 ## Project Structure
 
