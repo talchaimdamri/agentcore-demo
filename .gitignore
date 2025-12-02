@@ -16,3 +16,6 @@ __pycache__/
 # AgentCore auto-generated (contains AWS account info and local paths)
 .bedrock_agentcore.yaml
 .bedrock_agentcore/
+
+# Local development skills (not part of the agent)
+.claude/skills/repo-publish/
