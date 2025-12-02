@@ -1,0 +1,63 @@
+
+RETAIL STORE ORDERS - DATA ANALYSIS SUMMARY
+================================================================================
+
+Analysis Period: Last 6 months
+Total Records: 500 orders
+Date Range: 2025-05-28 to 2025-11-24
+
+================================================================================
+KEY FINDINGS
+================================================================================
+
+1. OVERALL PERFORMANCE
+   - Total Revenue: $1,931,420.76
+   - Total Orders: 500
+   - Average Order Value: $3,862.84
+   - Unique Customers: 100
+   - Average Items per Order: 4.91
+
+2. TOP PERFORMING PRODUCTS (by Revenue)
+   - Speaker: $258,841.16 (64 orders)
+   - SSD: $244,316.20 (53 orders)
+   - Headphones: $215,925.91 (58 orders)
+
+3. REGIONAL PERFORMANCE
+   - East Region leads with $506,292.31 (133 orders)
+   - West Region: $505,690.72 (130 orders)
+   - South Region: $484,648.31 (132 orders)
+   - North Region: $434,789.42 (105 orders)
+
+4. CATEGORY INSIGHTS
+   - Peripherals: $507,238.21 (27.4% of total revenue)
+   - Storage: $495,492.71 (26.6% of total revenue)
+   - Electronics: $466,609.59 (24.2% of total revenue)
+   - Accessories: $462,080.25 (23.9% of total revenue)
+
+5. PAYMENT PREFERENCES
+   - Cash is most popular: $583,220.63 (139 orders)
+   - Cash also has highest avg order value: $4,195.83
+   - PayPal has lowest avg order value: $3,553.03
+
+6. MONTHLY TREND
+   - Peak sales in July: $382,377.56 (94 orders)
+   - June also strong: $364,377.43 (95 orders)
+   - Recent decline in November: $275,608.50 (65 orders)
+
+7. CUSTOMER INSIGHTS
+   - Top customer (Customer_36): $56,821.61 (8 orders)
+   - Average revenue per customer: $19,314.21
+   - Customer retention shows repeat purchases
+
+================================================================================
+RECOMMENDATIONS
+================================================================================
+
+1. Focus marketing efforts on Speaker, SSD, and Headphones products
+2. Investigate North region's lower performance and develop growth strategies
+3. Analyze recent decline in November sales and implement retention campaigns
+4. Develop loyalty programs for top customers
+5. Consider incentives for alternative payment methods to reduce cash handling
+6. Balance inventory across all categories as performance is relatively even
+
+================================================================================
