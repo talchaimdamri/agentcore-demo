@@ -66,6 +66,10 @@ async def main(payload):
             "mcp__codeint__execute_command",
             "mcp__codeint__write_files",
             "mcp__codeint__read_files",
+            # S3 Storage tools
+            "mcp__codeint__upload_to_s3",
+            "mcp__codeint__download_from_s3",
+            "mcp__codeint__list_s3_files",
             "mcp__browser__search_web",
             "mcp__browser__scrape_page",
             "mcp__browser__take_screenshot",
@@ -84,6 +88,14 @@ async def main(payload):
   - mcp__codeint__execute_command: Execute bash/shell commands
   - mcp__codeint_write_files: Write/save files. Make a list of path - name of the file, text - contents of the file
   - mcp__codeint_read_files: Read files. Make a list of path - name of the file
+
+  S3 STORAGE TOOLS:
+  - mcp__codeint__upload_to_s3: Upload file from Code Interpreter to S3 bucket
+    * Parameters: file_path (local path), s3_key (destination key), code_int_session_id
+  - mcp__codeint__download_from_s3: Download file from S3 to Code Interpreter
+    * Parameters: s3_key (source key), local_path (destination), code_int_session_id
+  - mcp__codeint__list_s3_files: List files in S3 bucket
+    * Parameters: prefix (filter by prefix), code_int_session_id
 
   BROWSER AUTOMATION TOOLS (AgentCore BrowserClient):
   - mcp__browser__search_web: Navigate to URLs and perform web searches

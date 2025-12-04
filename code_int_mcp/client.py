@@ -19,7 +19,7 @@ class CodeInterpreterClient:
     def _create_sessionid(self) -> str:
         try:
             session_response = self.ci_client.start_code_interpreter_session(
-                codeInterpreterIdentifier="aws.codeinterpreter.v1",
+                codeInterpreterIdentifier="s3_code_interpreter-Eb7yoYoic6",
                 name="mcpInteractionSession",
                 sessionTimeoutSeconds=900,
             )
@@ -40,7 +40,7 @@ class CodeInterpreterClient:
 
             # Execute code
             response = self.ci_client.invoke_code_interpreter(
-                codeInterpreterIdentifier="aws.codeinterpreter.v1",
+                codeInterpreterIdentifier="s3_code_interpreter-Eb7yoYoic6",
                 sessionId=code_int_session_id,
                 name=operation,
                 arguments=args if args else {},
