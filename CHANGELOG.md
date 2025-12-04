@@ -1,5 +1,29 @@
 # Changelog
 
+## [1.1.0] - S3 Storage Integration
+
+### Added
+
+#### S3 Storage Tools
+- `upload_to_s3` - Upload files from Code Interpreter to S3 bucket
+- `download_from_s3` - Download files from S3 to Code Interpreter
+- `list_s3_files` - List files in S3 bucket with optional prefix filter
+
+### Modified
+
+#### code_int_mcp/server.py
+- Added 3 new S3 storage MCP tools
+- Updated tools registration to include S3 tools
+
+#### code_int_mcp/client.py
+- Updated code interpreter identifier to S3-enabled version (`s3_code_interpreter-Eb7yoYoic6`)
+
+#### agent.py
+- Added S3 tools to allowed tools list
+- Added S3 tools documentation to system prompt
+
+---
+
 ## [1.0.0] - Based on AWS Sample
 
 This project is a fork of the [AWS Claude Agent with Code Interpreter](https://github.com/awslabs/amazon-bedrock-agentcore-samples/tree/main/03-integrations/agentic-frameworks/claude-agent/claude-with-code-interpreter) example from [AWS Labs](https://github.com/awslabs/amazon-bedrock-agentcore-samples).
