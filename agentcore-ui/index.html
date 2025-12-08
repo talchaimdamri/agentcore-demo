@@ -1,0 +1,944 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AgentCore Console</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-deep: #0a0a0b;
+      --bg-surface: #121214;
+      --bg-elevated: #1a1a1d;
+      --bg-hover: #222226;
+      --border: #2a2a2f;
+      --border-subtle: #1f1f24;
+      --text-primary: #e8e8ec;
+      --text-secondary: #8a8a95;
+      --text-muted: #5a5a65;
+      --accent: #d4a853;
+      --accent-dim: #a68a42;
+      --accent-glow: rgba(212, 168, 83, 0.15);
+      --success: #4ade80;
+      --error: #f87171;
+      --user-bg: linear-gradient(135deg, #1e1e22 0%, #252529 100%);
+      --agent-bg: linear-gradient(135deg, rgba(212, 168, 83, 0.08) 0%, rgba(212, 168, 83, 0.03) 100%);
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Instrument Sans', -apple-system, sans-serif;
+      background: var(--bg-deep);
+      color: var(--text-primary);
+      min-height: 100vh;
+      overflow: hidden;
+    }
+
+    /* Subtle grid pattern background */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(212, 168, 83, 0.02) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(212, 168, 83, 0.02) 1px, transparent 1px);
+      background-size: 50px 50px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .app {
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      height: 100vh;
+      max-width: 1000px;
+      margin: 0 auto;
+      position: relative;
+      z-index: 1;
+    }
+
+    /* Header */
+    header {
+      padding: 24px 32px;
+      border-bottom: 1px solid var(--border-subtle);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: linear-gradient(180deg, var(--bg-surface) 0%, transparent 100%);
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .logo-icon {
+      width: 32px;
+      height: 32px;
+      background: linear-gradient(135deg, var(--accent) 0%, var(--accent-dim) 100%);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 600;
+      font-size: 14px;
+      color: var(--bg-deep);
+    }
+
+    .logo-text {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 14px;
+      font-weight: 500;
+      letter-spacing: 0.5px;
+      color: var(--text-primary);
+    }
+
+    .logo-text span {
+      color: var(--accent);
+    }
+
+    .status-badge {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 12px;
+      background: var(--bg-elevated);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+
+    .status-dot {
+      width: 6px;
+      height: 6px;
+      background: var(--success);
+      border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    /* Config Section */
+    .config-section {
+      padding: 20px 32px;
+      display: flex;
+      gap: 16px;
+      border-bottom: 1px solid var(--border-subtle);
+      background: var(--bg-surface);
+    }
+
+    .config-field {
+      flex: 1;
+    }
+
+    .config-field.session {
+      flex: 0 0 280px;
+    }
+
+    .field-label {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      font-weight: 500;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .field-label::before {
+      content: '';
+      width: 3px;
+      height: 3px;
+      background: var(--accent);
+      border-radius: 50%;
+    }
+
+    .config-input {
+      width: 100%;
+      padding: 12px 16px;
+      background: var(--bg-deep);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text-primary);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px;
+      transition: all 0.2s ease;
+    }
+
+    .config-input:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-glow);
+    }
+
+    .config-input::placeholder {
+      color: var(--text-muted);
+    }
+
+    select.config-input {
+      cursor: pointer;
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238a8a95' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 12px center;
+      padding-right: 36px;
+    }
+
+    .new-session-btn {
+      padding: 12px 20px;
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text-secondary);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      white-space: nowrap;
+      align-self: flex-end;
+    }
+
+    .new-session-btn:hover {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+      border-color: var(--accent-dim);
+    }
+
+    /* Chat Container */
+    .chat-container {
+      flex: 1;
+      overflow-y: auto;
+      padding: 32px;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+      scroll-behavior: smooth;
+    }
+
+    .chat-container::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    .chat-container::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    .chat-container::-webkit-scrollbar-thumb {
+      background: var(--border);
+      border-radius: 3px;
+    }
+
+    .chat-container::-webkit-scrollbar-thumb:hover {
+      background: var(--text-muted);
+    }
+
+    /* Empty State */
+    .empty-state {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      opacity: 0;
+      animation: fadeIn 0.5s ease 0.2s forwards;
+    }
+
+    @keyframes fadeIn {
+      to { opacity: 1; }
+    }
+
+    .empty-icon {
+      width: 64px;
+      height: 64px;
+      margin-bottom: 24px;
+      opacity: 0.3;
+    }
+
+    .empty-title {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 16px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      margin-bottom: 8px;
+    }
+
+    .empty-subtitle {
+      font-size: 14px;
+      color: var(--text-muted);
+      max-width: 320px;
+      line-height: 1.6;
+    }
+
+    /* Messages */
+    .message {
+      display: flex;
+      gap: 16px;
+      opacity: 0;
+      transform: translateY(10px);
+      animation: messageIn 0.3s ease forwards;
+    }
+
+    @keyframes messageIn {
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .message-avatar {
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      font-weight: 600;
+      flex-shrink: 0;
+    }
+
+    .message.user .message-avatar {
+      background: var(--bg-elevated);
+      border: 1px solid var(--border);
+      color: var(--text-secondary);
+    }
+
+    .message.agent .message-avatar {
+      background: linear-gradient(135deg, var(--accent) 0%, var(--accent-dim) 100%);
+      color: var(--bg-deep);
+    }
+
+    .message-content {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .message-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+
+    .message-role {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-secondary);
+    }
+
+    .message.agent .message-role {
+      color: var(--accent);
+    }
+
+    .message-time {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .message-bubble {
+      padding: 16px 20px;
+      border-radius: 12px;
+      font-size: 14px;
+      line-height: 1.7;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .message.user .message-bubble {
+      background: var(--user-bg);
+      border: 1px solid var(--border);
+    }
+
+    .message.agent .message-bubble {
+      background: var(--agent-bg);
+      border: 1px solid rgba(212, 168, 83, 0.15);
+    }
+
+    /* Tool Usage */
+    .tool-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      background: var(--bg-elevated);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      color: var(--text-secondary);
+      margin-bottom: 12px;
+    }
+
+    .tool-badge::before {
+      content: '⚡';
+      font-size: 10px;
+    }
+
+    /* System Message */
+    .system-message {
+      text-align: center;
+      padding: 12px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      color: var(--text-muted);
+      opacity: 0;
+      animation: fadeIn 0.3s ease forwards;
+    }
+
+    .system-message span {
+      padding: 6px 12px;
+      background: var(--bg-elevated);
+      border-radius: 4px;
+      border: 1px solid var(--border-subtle);
+    }
+
+    /* Typing Indicator */
+    .typing-indicator {
+      display: flex;
+      gap: 4px;
+      padding: 8px 0;
+    }
+
+    .typing-dot {
+      width: 6px;
+      height: 6px;
+      background: var(--accent);
+      border-radius: 50%;
+      animation: typingBounce 1.4s infinite ease-in-out;
+    }
+
+    .typing-dot:nth-child(1) { animation-delay: 0s; }
+    .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+    .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+
+    @keyframes typingBounce {
+      0%, 80%, 100% { transform: translateY(0); opacity: 0.4; }
+      40% { transform: translateY(-6px); opacity: 1; }
+    }
+
+    /* Input Section */
+    .input-section {
+      padding: 24px 32px;
+      background: linear-gradient(180deg, transparent 0%, var(--bg-surface) 30%);
+      border-top: 1px solid var(--border-subtle);
+    }
+
+    .input-wrapper {
+      display: flex;
+      gap: 12px;
+      align-items: flex-end;
+    }
+
+    .input-field-wrapper {
+      flex: 1;
+      position: relative;
+    }
+
+    .message-input {
+      width: 100%;
+      padding: 16px 20px;
+      background: var(--bg-deep);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      color: var(--text-primary);
+      font-family: 'Instrument Sans', sans-serif;
+      font-size: 14px;
+      resize: none;
+      min-height: 56px;
+      max-height: 200px;
+      transition: all 0.2s ease;
+    }
+
+    .message-input:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-glow), 0 8px 32px rgba(0, 0, 0, 0.3);
+    }
+
+    .message-input::placeholder {
+      color: var(--text-muted);
+    }
+
+    .send-btn {
+      width: 56px;
+      height: 56px;
+      background: linear-gradient(135deg, var(--accent) 0%, var(--accent-dim) 100%);
+      border: none;
+      border-radius: 12px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s ease;
+      flex-shrink: 0;
+    }
+
+    .send-btn:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(212, 168, 83, 0.3);
+    }
+
+    .send-btn:active:not(:disabled) {
+      transform: translateY(0);
+    }
+
+    .send-btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    .send-btn svg {
+      width: 20px;
+      height: 20px;
+      color: var(--bg-deep);
+    }
+
+    /* Session Info */
+    .session-info {
+      margin-top: 12px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .session-info::before {
+      content: '●';
+      color: var(--accent);
+      font-size: 8px;
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      header, .config-section, .input-section {
+        padding-left: 20px;
+        padding-right: 20px;
+      }
+
+      .chat-container {
+        padding: 20px;
+      }
+
+      .config-section {
+        flex-direction: column;
+      }
+
+      .config-field.session {
+        flex: 1;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <div class="logo">
+        <div class="logo-icon">AC</div>
+        <div class="logo-text">Agent<span>Core</span> Console</div>
+      </div>
+      <div class="status-badge">
+        <div class="status-dot"></div>
+        <span>Connected</span>
+      </div>
+    </header>
+
+    <div class="config-section">
+      <div class="config-field">
+        <div class="field-label">Agent ARN</div>
+        <input type="text" class="config-input" id="arn" placeholder="arn:aws:bedrock-agentcore:region:account:runtime/agent-id">
+      </div>
+      <div class="config-field session">
+        <div class="field-label">Session</div>
+        <select class="config-input" id="sessionSelect">
+          <option value="">New Session</option>
+        </select>
+      </div>
+      <button class="new-session-btn" onclick="newSession()">+ New</button>
+    </div>
+
+    <div class="chat-container" id="chat">
+      <div class="empty-state" id="emptyState">
+        <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+        </svg>
+        <div class="empty-title">Ready to invoke</div>
+        <div class="empty-subtitle">Paste your Agent ARN above and start a conversation with your deployed agent.</div>
+      </div>
+    </div>
+
+    <div class="input-section">
+      <div class="input-wrapper">
+        <div class="input-field-wrapper">
+          <textarea
+            class="message-input"
+            id="prompt"
+            placeholder="Send a message..."
+            rows="1"
+            onkeydown="handleKeyDown(event)"
+            oninput="autoResize(this)"
+          ></textarea>
+        </div>
+        <button class="send-btn" id="sendBtn" onclick="send()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/>
+          </svg>
+        </button>
+      </div>
+      <div class="session-info" id="sessionInfo" style="display: none;">
+        Session: <span id="sessionIdDisplay"></span>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let sessionId = "";
+    const API = "http://localhost:8080";
+    let sessions = JSON.parse(localStorage.getItem("agentcore_sessions") || "[]");
+
+    // In-memory message storage per session (lost on page refresh, kept during session switches)
+    const sessionMessages = {};
+
+    function init() {
+      renderSessionSelect();
+      document.getElementById("prompt").focus();
+    }
+
+    function renderSessionSelect() {
+      const select = document.getElementById("sessionSelect");
+      select.innerHTML = '<option value="">New Session</option>' +
+        sessions.map(s =>
+          `<option value="${s.id}" ${s.id === sessionId ? 'selected' : ''}>${s.id.slice(0,8)}… · ${s.msgCount || 0} msgs</option>`
+        ).join("");
+
+      updateSessionInfo();
+    }
+
+    function updateSessionInfo() {
+      const info = document.getElementById("sessionInfo");
+      const display = document.getElementById("sessionIdDisplay");
+      if (sessionId) {
+        info.style.display = "flex";
+        display.textContent = sessionId;
+      } else {
+        info.style.display = "none";
+      }
+    }
+
+    document.getElementById("sessionSelect").addEventListener("change", function() {
+      const selectedId = this.value;
+      if (selectedId !== sessionId) {
+        // Save current session messages before switching
+        saveCurrentChatToMemory();
+
+        sessionId = selectedId;
+
+        // Restore messages for the selected session
+        restoreChatFromMemory();
+        updateSessionInfo();
+      }
+    });
+
+    function newSession() {
+      // Save current session before creating new
+      saveCurrentChatToMemory();
+
+      sessionId = "";
+      document.getElementById("sessionSelect").value = "";
+      showEmptyState();
+      updateSessionInfo();
+    }
+
+    function saveCurrentChatToMemory() {
+      if (!sessionId) return;
+
+      // Get all messages from the chat
+      const chat = document.getElementById("chat");
+      const messages = [];
+
+      chat.querySelectorAll(".message, .system-message").forEach(el => {
+        if (el.classList.contains("message")) {
+          const type = el.classList.contains("user") ? "user" : "agent";
+          const text = el.querySelector(".message-bubble")?.textContent || "";
+          const time = el.querySelector(".message-time")?.textContent || "";
+          const tools = [];
+          el.querySelectorAll(".tool-badge").forEach(badge => {
+            tools.push(badge.textContent);
+          });
+          messages.push({ type: "message", role: type, text, time, tools });
+        } else if (el.classList.contains("system-message")) {
+          messages.push({ type: "system", text: el.querySelector("span")?.textContent || "" });
+        }
+      });
+
+      sessionMessages[sessionId] = messages;
+    }
+
+    function restoreChatFromMemory() {
+      const chat = document.getElementById("chat");
+      chat.innerHTML = "";
+
+      if (!sessionId || !sessionMessages[sessionId] || sessionMessages[sessionId].length === 0) {
+        showEmptyState();
+        addSystemMessage(`Resumed session ${sessionId.slice(0, 8)}…`);
+        return;
+      }
+
+      const messages = sessionMessages[sessionId];
+      messages.forEach(msg => {
+        if (msg.type === "message") {
+          const div = document.createElement("div");
+          div.className = `message ${msg.role}`;
+          const avatar = msg.role === "user" ? "You" : "AC";
+          const role = msg.role === "user" ? "You" : "Agent";
+
+          div.innerHTML = `
+            <div class="message-avatar">${avatar}</div>
+            <div class="message-content">
+              <div class="message-header">
+                <span class="message-role">${role}</span>
+                <span class="message-time">${msg.time}</span>
+              </div>
+              ${msg.tools.map(t => `<div class="tool-badge">${t}</div>`).join("")}
+              <div class="message-bubble"></div>
+            </div>
+          `;
+          div.querySelector(".message-bubble").textContent = msg.text;
+          div.style.opacity = "1";
+          div.style.transform = "none";
+          chat.appendChild(div);
+        } else if (msg.type === "system") {
+          const div = document.createElement("div");
+          div.className = "system-message";
+          div.innerHTML = `<span>${msg.text}</span>`;
+          div.style.opacity = "1";
+          chat.appendChild(div);
+        }
+      });
+
+      chat.scrollTop = chat.scrollHeight;
+    }
+
+    function showEmptyState() {
+      const chat = document.getElementById("chat");
+      chat.innerHTML = `
+        <div class="empty-state" id="emptyState">
+          <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+          </svg>
+          <div class="empty-title">Ready to invoke</div>
+          <div class="empty-subtitle">Paste your Agent ARN above and start a conversation with your deployed agent.</div>
+        </div>
+      `;
+    }
+
+    function saveSession(id) {
+      if (!id) return;
+      const idx = sessions.findIndex(s => s.id === id);
+      if (idx >= 0) {
+        sessions[idx].msgCount = (sessions[idx].msgCount || 0) + 1;
+        sessions[idx].lastUsed = Date.now();
+      } else {
+        sessions.unshift({
+          id,
+          date: new Date().toLocaleString(),
+          msgCount: 1,
+          lastUsed: Date.now()
+        });
+      }
+      sessions.sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0));
+      if (sessions.length > 20) sessions = sessions.slice(0, 20);
+      localStorage.setItem("agentcore_sessions", JSON.stringify(sessions));
+      renderSessionSelect();
+    }
+
+    function hideEmptyState() {
+      const empty = document.getElementById("emptyState");
+      if (empty) empty.remove();
+    }
+
+    function getTime() {
+      return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+
+    function addMessage(text, type) {
+      hideEmptyState();
+      const chat = document.getElementById("chat");
+      const div = document.createElement("div");
+      div.className = `message ${type}`;
+
+      const avatar = type === "user" ? "You" : "AC";
+      const role = type === "user" ? "You" : "Agent";
+
+      div.innerHTML = `
+        <div class="message-avatar">${avatar}</div>
+        <div class="message-content">
+          <div class="message-header">
+            <span class="message-role">${role}</span>
+            <span class="message-time">${getTime()}</span>
+          </div>
+          <div class="message-bubble"></div>
+        </div>
+      `;
+
+      div.querySelector(".message-bubble").textContent = text;
+      chat.appendChild(div);
+      chat.scrollTop = chat.scrollHeight;
+      return div.querySelector(".message-bubble");
+    }
+
+    function addToolBadge(toolName, container) {
+      const badge = document.createElement("div");
+      badge.className = "tool-badge";
+      badge.textContent = toolName;
+      container.parentElement.insertBefore(badge, container);
+    }
+
+    function addSystemMessage(text) {
+      hideEmptyState();
+      const chat = document.getElementById("chat");
+      const div = document.createElement("div");
+      div.className = "system-message";
+      div.innerHTML = `<span>${text}</span>`;
+      chat.appendChild(div);
+      chat.scrollTop = chat.scrollHeight;
+    }
+
+    function addTypingIndicator() {
+      hideEmptyState();
+      const chat = document.getElementById("chat");
+      const div = document.createElement("div");
+      div.className = "message agent";
+      div.id = "typingIndicator";
+      div.innerHTML = `
+        <div class="message-avatar">AC</div>
+        <div class="message-content">
+          <div class="typing-indicator">
+            <div class="typing-dot"></div>
+            <div class="typing-dot"></div>
+            <div class="typing-dot"></div>
+          </div>
+        </div>
+      `;
+      chat.appendChild(div);
+      chat.scrollTop = chat.scrollHeight;
+    }
+
+    function removeTypingIndicator() {
+      const indicator = document.getElementById("typingIndicator");
+      if (indicator) indicator.remove();
+    }
+
+    function handleKeyDown(e) {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        send();
+      }
+    }
+
+    function autoResize(el) {
+      el.style.height = "auto";
+      el.style.height = Math.min(el.scrollHeight, 200) + "px";
+    }
+
+    async function send() {
+      const arn = document.getElementById("arn").value.trim();
+      const promptEl = document.getElementById("prompt");
+      const prompt = promptEl.value.trim();
+
+      if (!arn || !prompt) return;
+
+      promptEl.value = "";
+      promptEl.style.height = "auto";
+      document.getElementById("sendBtn").disabled = true;
+
+      addMessage(prompt, "user");
+      addTypingIndicator();
+
+      let agentBubble = null;
+      let fullText = "";
+
+      try {
+        const res = await fetch(`${API}/invoke`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ agent_arn: arn, prompt, session_id: sessionId }),
+        });
+
+        removeTypingIndicator();
+        agentBubble = addMessage("", "agent");
+
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop();
+
+          for (const line of lines) {
+            if (!line.startsWith("data:")) continue;
+            try {
+              const data = JSON.parse(line.slice(5).trim());
+
+              if (data.type === "text") {
+                fullText += data.text;
+                agentBubble.textContent = fullText;
+                document.getElementById("chat").scrollTop = document.getElementById("chat").scrollHeight;
+              } else if (data.type === "tool_use") {
+                addToolBadge(data.tool_name, agentBubble);
+              } else if (data.type === "final") {
+                if (data.session_id) {
+                  sessionId = data.session_id;
+                  saveSession(sessionId);
+                  updateSessionInfo();
+                }
+              } else if (data.type === "error") {
+                agentBubble.textContent = `Error: ${data.error}`;
+              }
+            } catch (e) {
+              console.error("Parse error:", e);
+            }
+          }
+        }
+      } catch (e) {
+        removeTypingIndicator();
+        if (!agentBubble) {
+          agentBubble = addMessage("", "agent");
+        }
+        agentBubble.textContent = `Connection error: ${e.message}`;
+      }
+
+      document.getElementById("sendBtn").disabled = false;
+      document.getElementById("prompt").focus();
+    }
+
+    init();
+  </script>
+</body>
+</html>
