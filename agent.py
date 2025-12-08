@@ -36,9 +36,9 @@ async def main(payload):
     # Determine model format based on CLAUDE_CODE_USE_BEDROCK environment variable
     use_bedrock = os.environ.get("CLAUDE_CODE_USE_BEDROCK", "1") == "1"
     model_name = (
-        "global.anthropic.claude-sonnet-4-5-20250929-v1:0"
+        "global.anthropic.claude-haiku-4-5-20251001-v1:0"
         if use_bedrock
-        else "claude-sonnet-4-5-20250929"
+        else "claude-haiku-4-5-20251001"
     )
     logger.info(f"Using {'Bedrock' if use_bedrock else 'Anthropic API'} with model: {model_name}")
 
