@@ -42,6 +42,12 @@ This fork extends the original AWS sample with:
 - `download_session_files.py` - Interactive file browser for Code Interpreter sessions
 - Presentation creation examples
 
+### 5. AgentCore Invoke UI
+- Web-based interface for testing deployed agents
+- Real-time streaming responses
+- Session management with conversation history
+- Premium dark-themed design
+
 ![architecture](./images/deploy.png)
 ![architecture](./images/invoke.png)
 
@@ -148,6 +154,32 @@ uv run test_scripts/invoke_agent.py
 agentcore invoke '{"prompt":"Go to example.com and take a screenshot of the page"}'
 ```
 
+## Using the Invoke UI
+
+A web-based interface is provided for testing your deployed agent interactively.
+
+### 1. Start the backend server
+```bash
+cd agentcore-ui
+source ../.venv/bin/activate
+python3 -m uvicorn api:app --reload --port 8080
+```
+
+### 2. Open the frontend
+Open `agentcore-ui/index.html` in your browser, or run:
+```bash
+open agentcore-ui/index.html
+```
+
+### 3. Configure and use
+1. Paste your Agent ARN in the "Agent ARN" field
+2. Type a message and press Enter or click Send
+3. View streaming responses in real-time
+4. Switch between sessions using the dropdown
+5. Click "+ New" to start a fresh conversation
+
+**Note**: Session history is preserved while switching between conversations, but cleared on page refresh.
+
 ## What It Does
 
 You can use the agent to:
@@ -168,6 +200,10 @@ You can use the agent to:
 ├── browser_mcp/                 # Browser Automation MCP server (NEW)
 │   ├── server.py                # Browser tools: search, scrape, screenshot
 │   └── __init__.py
+├── agentcore-ui/                # Web UI for testing agents (NEW)
+│   ├── api.py                   # FastAPI backend with SSE streaming
+│   ├── index.html               # Premium dark-themed frontend
+│   └── invoke.html              # Simple minimal frontend
 ├── .claude/skills/              # Claude Code Skills (NEW)
 │   └── cc-conversation-analyzer/
 ├── test_scripts/

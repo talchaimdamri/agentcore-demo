@@ -1,5 +1,36 @@
 # Changelog
 
+## [1.2.0] - AgentCore Invoke UI
+
+### Added
+
+#### Web-based Invoke UI (`agentcore-ui/`)
+- `api.py` - FastAPI backend with SSE streaming endpoint
+  - boto3 integration for agent invocation
+  - Session ID extraction from response metadata
+  - CORS enabled for local development
+- `index.html` - Premium dark-themed frontend
+  - JetBrains Mono + Instrument Sans typography
+  - Amber/gold accent color scheme
+  - Real-time streaming chat interface
+  - Session management with dropdown selector
+  - In-memory message persistence across session switches
+  - Typing indicator with animated dots
+  - Tool usage badges
+- `invoke.html` - Simple minimal frontend (original version)
+
+#### Dependencies
+- Added `fastapi` and `uvicorn[standard]` for the backend server
+
+### Modified
+
+#### agent.py
+- Changed default model from Claude Sonnet 4.5 to Claude Haiku 4.5
+  - `global.anthropic.claude-haiku-4-5-20251001-v1:0` (Bedrock)
+  - `claude-haiku-4-5-20251001` (Anthropic API)
+
+---
+
 ## [1.1.0] - S3 Storage Integration
 
 ### Added
