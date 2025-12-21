@@ -11,8 +11,6 @@ from claude_agent_sdk import (
     ToolResultBlock,
 )
 from bedrock_agentcore.runtime import BedrockAgentCoreApp
-from bedrock_agentcore.memory import MemorySessionManager
-from bedrock_agentcore.memory.constants import ConversationalMessage, MessageRole
 import logging
 import json
 import os
@@ -23,98 +21,6 @@ logger = logging.getLogger(__name__)
 
 app = BedrockAgentCoreApp()
 
-# Global cache for memory session manager
-_memory_session_manager = None
-
-
-def get_memory_session_manager() -> MemorySessionManager:
-    """Lazy-initialize and cache the memory session manager."""
-    global _memory_session_manager
-
-    if _memory_session_manager is not None:
-        return _memory_session_manager
-
-    memory_id = os.environ.get("BEDROCK_AGENTCORE_MEMORY_ID")
-    if not memory_id:
-        raise ValueError("BEDROCK_AGENTCORE_MEMORY_ID not set")
-
-    _memory_session_manager = MemorySessionManager(
-        memory_id=memory_id,
-        region_name=os.environ.get("AWS_REGION", "us-east-1")
-    )
-    return _memory_session_manager
-
-
-def get_stm_context(manager: MemorySessionManager, actor_id: str, session_id: str, k: int = 10) -> str:
-    """Retrieve STM (conversation history) formatted for system prompt."""
-    try:
-        turns = manager.get_last_k_turns(actor_id=actor_id, session_id=session_id, k=k)
-        if not turns:
-            return ""
-
-        history = []
-        for turn in turns:
-            for msg in turn:
-                role = msg.get('role', 'unknown')
-                text = msg.get('content', {}).get('text', '')
-                if text:
-                    label = "User" if role.lower() in ['user', 'human'] else "Assistant"
-                    history.append(f"{label}: {text}")
-
-        if not history:
-            return ""
-
-        return "\n## CONVERSATION HISTORY:\n" + "\n".join(history) + "\n"
-
-    except Exception as e:
-        logger.warning("Failed to get STM: %s", e)
-        return ""
-
-
-def get_ltm_context(manager: MemorySessionManager, actor_id: str, query: str, top_k: int = 5) -> str:
-    """Search LTM and format results for system prompt."""
-    try:
-        memories = manager.search_long_term_memories(
-            query=query,
-            namespace_prefix=f"/users/{actor_id}/facts",
-            top_k=top_k
-        )
-
-        if not memories:
-            return ""
-
-        relevant = []
-        for m in memories:
-            text = m.get('content', {}).get('text', '')
-            score = m.get('relevanceScore', 0)
-            if text and score >= 0:
-                relevant.append(f"- {text}")
-
-        if not relevant:
-            return ""
-
-        return "\n## RELEVANT MEMORIES:\n" + "\n".join(relevant) + "\n"
-
-    except Exception as e:
-        logger.warning("Failed to search LTM: %s", e)
-        return ""
-
-
-async def store_turn(manager: MemorySessionManager, actor_id: str, session_id: str, user_msg: str, assistant_msg: str):
-    """Store conversation turn in STM."""
-    try:
-        manager.add_turns(
-            actor_id=actor_id,
-            session_id=session_id,
-            messages=[
-                ConversationalMessage(user_msg, MessageRole.USER),
-                ConversationalMessage(assistant_msg, MessageRole.ASSISTANT)
-            ]
-        )
-        logger.info("Stored conversation turn for actor_id=%s, session_id=%s", actor_id, session_id)
-    except Exception as e:
-        logger.warning("Failed to store turn: %s", e)
-
 
 @app.entrypoint
 async def main(payload):
@@ -124,7 +30,6 @@ async def main(payload):
     """
     prompt = payload["prompt"]
     session_id = payload.get("session_id", "")
-    actor_id = payload.get("actor_id", session_id or "default")
     agent_responses = []
     code_int_session_id = session_id
 
@@ -136,19 +41,6 @@ async def main(payload):
         else "claude-haiku-4-5-20251001"
     )
     logger.info(f"Using {'Bedrock' if use_bedrock else 'Anthropic API'} with model: {model_name}")
-
-    # Initialize memory context
-    stm_context = ""
-    ltm_context = ""
-    memory_manager = None
-
-    try:
-        memory_manager = get_memory_session_manager()
-        stm_context = get_stm_context(memory_manager, actor_id, session_id)
-        ltm_context = get_ltm_context(memory_manager, actor_id, prompt)
-        logger.info(f"Memory loaded - STM: {len(stm_context)} chars, LTM: {len(ltm_context)} chars")
-    except Exception as e:
-        logger.warning(f"Memory unavailable, continuing without memory: {e}")
 
     # Log current working directory and Skills path for debugging
     current_dir = os.getcwd()
@@ -183,7 +75,7 @@ async def main(payload):
             "mcp__browser__take_screenshot",
         ],
         system_prompt=f"""You are an AI assistant that helps users with tasks associated with code generation, execution, and web automation.
-{stm_context}{ltm_context}
+
   CRITICAL RULES:
   1. You MUST use mcp__codeint__execute_code for ALL Python code execution tasks. If a library is not found, rewrite code to use an alternate library. Do not attempt to install missing libraries.
   2. You can use mcp__codeint__execute_command to execute bash commands within code interpreter session.
@@ -284,13 +176,6 @@ async def main(payload):
                 logger.info("*" * 80 + "\n")
                 logger.info("ResultMessage received - conversation complete %s", msg)
                 break  # Exit loop when final result is received
-
-    # Store conversation turn in memory
-    if memory_manager and agent_responses:
-        await store_turn(
-            memory_manager, actor_id, session_id,
-            prompt, "\n".join(agent_responses)
-        )
 
     # Yield final response with complete data
     yield {
