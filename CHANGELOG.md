@@ -1,5 +1,31 @@
 # Changelog
 
+## [1.3.0] - Memory System & Debug UI
+
+### Added
+
+#### Memory System Integration (`agent.py`)
+- `MemorySessionManager` integration with Bedrock AgentCore
+- `get_stm_context()` - Retrieve short-term memory (recent conversation turns)
+- `get_ltm_context()` - Semantic search in long-term memory
+- `store_turn()` - Store conversation turns for memory persistence
+- Actor ID support for multi-user memory isolation
+
+#### Debug UI (`agentcore-ui/index.html`)
+- Real-time debug panel with collapsible sections
+- Request payload viewer
+- Response headers panel
+- SSE event stream with timestamps and colored badges
+- Network statistics (TTFB, total time, bytes, event count, rate)
+- User selector with 5 predefined users
+
+#### API Enhancements (`agentcore-ui/api.py`)
+- `GET /health` - Health check endpoint
+- `user_name` field in request model (passed as actor_id)
+- Comprehensive request/response logging with structured format
+
+---
+
 ## [1.2.0] - AgentCore Invoke UI
 
 ### Added
