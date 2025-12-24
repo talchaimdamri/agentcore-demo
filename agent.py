@@ -16,10 +16,20 @@ from bedrock_agentcore.memory.constants import ConversationalMessage, MessageRol
 import logging
 import json
 import os
+import re
+from typing import List, Optional
 
 # Logging setup
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Episodic Memory Configuration (hardcoded)
+EPISODIC_MEMORY_CONFIG = {
+    "max_results_per_namespace": 3,    # top_k per search
+    "total_max_results": 6,            # Hard cap on total episodic memories
+    "min_relevance_score": 0.3,        # Threshold for inclusion
+    "max_context_chars": 2000,         # Max characters in episodic context
+}
 
 app = BedrockAgentCoreApp()
 
@@ -71,12 +81,37 @@ def get_stm_context(manager: MemorySessionManager, actor_id: str, session_id: st
         return ""
 
 
-def get_ltm_context(manager: MemorySessionManager, actor_id: str, query: str, top_k: int = 5) -> str:
-    """Search LTM and format results for system prompt."""
+def get_semantic_strategy_id(manager: MemorySessionManager) -> Optional[str]:
+    """Find the semantic strategy ID by listing memory records."""
     try:
+        records = manager.list_long_term_memory_records(namespace_prefix="/", max_results=30)
+        for rec in records:
+            strategy_id = rec.get('memoryStrategyId', '')
+            if 'semantic' in strategy_id.lower():
+                return strategy_id
+        return None
+    except Exception as e:
+        logger.warning("Failed to find semantic strategy: %s", e)
+        return None
+
+
+def get_ltm_context(manager: MemorySessionManager, actor_id: str, query: str, top_k: int = 5) -> str:
+    """Search LTM (semantic memory) and format results for system prompt."""
+    try:
+        # First try to find semantic strategy and use proper namespace
+        semantic_strategy_id = get_semantic_strategy_id(manager)
+
+        if semantic_strategy_id:
+            namespace = f"/strategies/{semantic_strategy_id}/actors/{actor_id}"
+            logger.info(f"Using semantic strategy namespace: {namespace}")
+        else:
+            # Fallback to old namespace
+            namespace = f"/users/{actor_id}/facts"
+            logger.info(f"No semantic strategy found, using fallback namespace: {namespace}")
+
         memories = manager.search_long_term_memories(
             query=query,
-            namespace_prefix=f"/users/{actor_id}/facts",
+            namespace_prefix=namespace,
             top_k=top_k
         )
 
@@ -86,17 +121,248 @@ def get_ltm_context(manager: MemorySessionManager, actor_id: str, query: str, to
         relevant = []
         for m in memories:
             text = m.get('content', {}).get('text', '')
-            score = m.get('relevanceScore', 0)
+            # API returns 'score', not 'relevanceScore'
+            score = m.get('score', m.get('relevanceScore', 0))
+            logger.info(f"LTM memory score: {score}, text preview: {text[:100] if text else 'empty'}")
             if text and score >= 0:
                 relevant.append(f"- {text}")
 
         if not relevant:
             return ""
 
-        return "\n## RELEVANT MEMORIES:\n" + "\n".join(relevant) + "\n"
+        return "\n## RELEVANT MEMORIES (Facts about user):\n" + "\n".join(relevant) + "\n"
 
     except Exception as e:
         logger.warning("Failed to search LTM: %s", e)
+        return ""
+
+
+def get_episodic_strategy_id(manager: MemorySessionManager) -> Optional[str]:
+    """Find the episodic strategy ID by listing memory records and extracting strategy IDs."""
+    try:
+        records = manager.list_long_term_memory_records(namespace_prefix="/", max_results=20)
+        for rec in records:
+            strategy_id = rec.get('memoryStrategyId', '')
+            if 'episodic' in strategy_id.lower():
+                return strategy_id
+        return None
+    except Exception as e:
+        logger.warning("Failed to find episodic strategy: %s", e)
+        return None
+
+
+def parse_episodic_content(content_text: str) -> dict:
+    """Parse episodic memory content JSON and determine type."""
+    try:
+        data = json.loads(content_text)
+        # Determine type based on JSON structure
+        if 'use_cases' in data and 'title' in data:
+            data['_type'] = 'REFLECTION'
+        elif 'situation' in data and 'intent' in data:
+            data['_type'] = 'LEARNED_PATTERN'
+        else:
+            data['_type'] = 'UNKNOWN'
+        return data
+    except json.JSONDecodeError:
+        return {'_type': 'TEXT', 'text': content_text}
+
+
+def filter_and_score_episodic(
+    memories: List[dict],
+    min_score: float
+) -> List[dict]:
+    """Filter episodic memories by relevance score and parse content."""
+    filtered = []
+    for m in memories:
+        # API returns 'score', not 'relevanceScore'
+        score = m.get('score', m.get('relevanceScore', 0))
+        logger.info(f"Episodic memory score: {score}, keys: {list(m.keys())}")
+        if score < min_score:
+            logger.info(f"Filtering out memory with score {score} < {min_score}")
+            continue
+
+        content = m.get('content', {})
+        text = content.get('text', '') if isinstance(content, dict) else str(content)
+        logger.info(f"Memory content text (first 200 chars): {text[:200]}")
+        parsed = parse_episodic_content(text)
+
+        filtered.append({
+            'score': score,
+            'parsed': parsed,
+            'namespaces': m.get('namespaces', []),
+            'strategy_id': m.get('memoryStrategyId', '')
+        })
+
+    logger.info(f"Filtered episodic memories: {len(filtered)} of {len(memories)}")
+    return sorted(filtered, key=lambda x: x['score'], reverse=True)
+
+
+def format_episodic_context(memories: List[dict], max_chars: int) -> str:
+    """Format episodic memories for injection into system prompt."""
+    if not memories:
+        return ""
+
+    lines = ["\n## EPISODIC MEMORIES (Learned Patterns & Insights):"]
+    char_count = len(lines[0])
+
+    for m in memories:
+        parsed = m.get('parsed', {})
+        mem_type = parsed.get('_type', 'UNKNOWN')
+
+        if mem_type == 'REFLECTION':
+            title = parsed.get('title', 'Untitled')
+            use_cases = parsed.get('use_cases', '')[:150]
+            hints = parsed.get('hints', '')
+            line = f"- [Insight] {title}: {use_cases}"
+            if hints:
+                line += f" (Hint: {hints[:50]})"
+        elif mem_type == 'LEARNED_PATTERN':
+            situation = parsed.get('situation', '')[:100]
+            intent = parsed.get('intent', '')[:100]
+            reflection = parsed.get('reflection', '')[:100]
+            line = f"- [Pattern] Situation: {situation}... Intent: {intent}... Lesson: {reflection}"
+        else:
+            line = f"- [Memory] {str(parsed)[:150]}"
+
+        if char_count + len(line) > max_chars:
+            break
+
+        lines.append(line)
+        char_count += len(line)
+
+    return "\n".join(lines) + "\n"
+
+
+async def generate_memory_queries(prompt: str, model_name: str) -> List[str]:
+    """
+    Generate a few short free-form search queries to improve memory recall.
+
+    This is part of the agent flow (a lightweight internal model pass), not a tool call.
+    If parsing fails for any reason, falls back to [prompt].
+    """
+    system = """You generate search queries to retrieve relevant user memories.
+Return ONLY valid JSON: {"queries": [..]}.
+Rules:
+- Max 3 queries.
+- Short, natural-language.
+- Cover: (1) task intent, (2) user preferences/background, (3) key entities/keywords.
+- Do not include explanations."""
+
+    user_message = f"User message:\n{prompt}\n\nJSON:"
+
+    try:
+        options = ClaudeAgentOptions(model=model_name)
+        async with ClaudeSDKClient(options=options) as client:
+            resp = await client.messages.create(
+                messages=[UserMessage(content=[TextBlock(text=user_message)])],
+                system=system,
+                max_tokens=200,
+            )
+
+        text = ""
+        for block in resp.content:
+            if isinstance(block, TextBlock):
+                text += block.text
+
+        data = json.loads(text.strip())
+        queries = [q.strip() for q in data.get("queries", []) if isinstance(q, str) and q.strip()]
+
+        logger.info(f"Generated {len(queries)} memory queries: {queries[:3]}")
+
+        # Always include the original prompt as the first query
+        return [prompt] + queries[:3]
+
+    except Exception as e:
+        logger.warning("Failed to generate memory queries: %s", e)
+        return [prompt]
+
+
+def get_episodic_context(
+    manager: MemorySessionManager,
+    actor_id: str,
+    session_id: str,
+    queries: List[str],
+    config: dict = None
+) -> str:
+    """Retrieve episodic memories from session and actor level namespaces.
+
+    Args:
+        manager: MemorySessionManager instance
+        actor_id: Actor identifier
+        session_id: Session identifier
+        queries: List of search queries (from generate_memory_queries)
+        config: Optional config override
+    """
+    if config is None:
+        config = EPISODIC_MEMORY_CONFIG
+
+    if not queries:
+        return ""
+
+    try:
+        all_memories = []
+        seen_ids = set()  # Deduplicate across queries
+
+        # Find the episodic strategy ID
+        episodic_strategy_id = get_episodic_strategy_id(manager)
+        if not episodic_strategy_id:
+            logger.info("No episodic strategy found, skipping episodic retrieval")
+            return ""
+
+        logger.info(f"Using episodic strategy: {episodic_strategy_id}")
+
+        # Search with each query (limit to first 2 queries to control latency)
+        for query in queries[:2]:
+            # Search actor-level namespace (reflections - cross-session patterns)
+            actor_namespace = f"/strategies/{episodic_strategy_id}/actors/{actor_id}"
+            try:
+                actor_mems = manager.search_long_term_memories(
+                    query=query,
+                    namespace_prefix=actor_namespace,
+                    top_k=config["max_results_per_namespace"]
+                )
+                for m in actor_mems:
+                    mem_id = m.get('memoryRecordId', '')
+                    if mem_id and mem_id not in seen_ids:
+                        seen_ids.add(mem_id)
+                        all_memories.append(m)
+            except Exception as e:
+                logger.warning(f"Actor-level search failed for query '{query[:30]}': {e}")
+
+            # Search session-level namespace (episodes - specific interactions)
+            if session_id:
+                session_namespace = f"/strategies/{episodic_strategy_id}/actors/{actor_id}/sessions/{session_id}"
+                try:
+                    session_mems = manager.search_long_term_memories(
+                        query=query,
+                        namespace_prefix=session_namespace,
+                        top_k=config["max_results_per_namespace"]
+                    )
+                    for m in session_mems:
+                        mem_id = m.get('memoryRecordId', '')
+                        if mem_id and mem_id not in seen_ids:
+                            seen_ids.add(mem_id)
+                            all_memories.append(m)
+                except Exception as e:
+                    logger.warning(f"Session-level search failed for query '{query[:30]}': {e}")
+
+            # Early exit if we have enough memories
+            if len(all_memories) >= config["total_max_results"]:
+                break
+
+        logger.info(f"Episodic search found {len(all_memories)} unique memories")
+
+        if not all_memories:
+            return ""
+
+        # Filter and format
+        filtered = filter_and_score_episodic(all_memories, config["min_relevance_score"])
+        truncated = filtered[:config["total_max_results"]]
+
+        return format_episodic_context(truncated, config["max_context_chars"])
+
+    except Exception as e:
+        logger.warning("Failed to get episodic context: %s", e)
         return ""
 
 
@@ -140,13 +406,25 @@ async def main(payload):
     # Initialize memory context
     stm_context = ""
     ltm_context = ""
+    episodic_context = ""
     memory_manager = None
 
     try:
         memory_manager = get_memory_session_manager()
         stm_context = get_stm_context(memory_manager, actor_id, session_id)
         ltm_context = get_ltm_context(memory_manager, actor_id, prompt)
-        logger.info(f"Memory loaded - STM: {len(stm_context)} chars, LTM: {len(ltm_context)} chars")
+
+        # Episodic memory retrieval with LLM-generated queries
+        memory_queries = await generate_memory_queries(prompt, model_name)
+        episodic_context = get_episodic_context(
+            memory_manager, actor_id, session_id, memory_queries
+        )
+
+        logger.info(
+            f"Memory loaded - STM: {len(stm_context)} chars, "
+            f"LTM: {len(ltm_context)} chars, "
+            f"Episodic: {len(episodic_context)} chars"
+        )
     except Exception as e:
         logger.warning(f"Memory unavailable, continuing without memory: {e}")
 
@@ -183,7 +461,7 @@ async def main(payload):
             "mcp__browser__take_screenshot",
         ],
         system_prompt=f"""You are an AI assistant that helps users with tasks associated with code generation, execution, and web automation.
-{stm_context}{ltm_context}
+{stm_context}{ltm_context}{episodic_context}
   CRITICAL RULES:
   1. You MUST use mcp__codeint__execute_code for ALL Python code execution tasks. If a library is not found, rewrite code to use an alternate library. Do not attempt to install missing libraries.
   2. You can use mcp__codeint__execute_command to execute bash commands within code interpreter session.
