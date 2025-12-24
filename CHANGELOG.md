@@ -1,5 +1,28 @@
 # Changelog
 
+## [1.3.1] - Episodic Memory Retrieval
+
+### Added
+
+#### Episodic Memory System (`agent.py`)
+- `EPISODIC_MEMORY_CONFIG` - Hardcoded configuration for episodic retrieval tuning
+- `get_semantic_strategy_id()` - Discover semantic memory strategy from records
+- `get_episodic_strategy_id()` - Discover episodic memory strategy from records
+- `parse_episodic_content()` - Parse JSON episodic content (REFLECTION, LEARNED_PATTERN types)
+- `filter_and_score_episodic()` - Filter memories by relevance score threshold
+- `format_episodic_context()` - Format episodic memories for system prompt injection
+- `generate_memory_queries()` - LLM-generated search queries for improved recall
+- `get_episodic_context()` - Main function for actor/session level episodic retrieval
+- Enhanced `get_ltm_context()` with proper semantic strategy namespace
+
+#### Assets
+- `agentcore-memory-skill.zip` - Memory skill archive
+
+### Fixed
+- Memory API returns `score` field, not `relevanceScore` - updated all retrieval functions
+
+---
+
 ## [1.3.0] - Memory System & Debug UI
 
 ### Added
