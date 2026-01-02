@@ -17,6 +17,7 @@ import logging
 import json
 import os
 import re
+import requests
 from typing import List, Optional
 
 # Logging setup
@@ -30,6 +31,59 @@ EPISODIC_MEMORY_CONFIG = {
     "min_relevance_score": 0.3,        # Threshold for inclusion
     "max_context_chars": 2000,         # Max characters in episodic context
 }
+
+# AgentCore Gateway Configuration
+GATEWAY_CONFIG = {
+    "url": "https://gateway-quick-start-0a34be-4ozn33e0lx.gateway.bedrock-agentcore.eu-central-1.amazonaws.com/mcp",
+    "token_endpoint": "https://my-domain-0fnrf9sj.auth.eu-central-1.amazoncognito.com/oauth2/token",
+    "client_id": "5ggtr7ctfontos361o09he4qdd",
+    "client_secret": "1hohqppda5ainap4a5068a168k0qhu08nqs183jhpgi02g5889dh",
+}
+
+# Global cache for gateway token
+_gateway_token_cache = {"token": None, "expires_at": 0}
+
+
+def get_gateway_auth_token() -> str:
+    """
+    Retrieve Bearer token for AgentCore Gateway via Cognito OAuth2 client_credentials flow.
+    Caches the token until near expiry.
+    """
+    import time
+
+    # Check cache first (with 60s buffer before expiry)
+    if _gateway_token_cache["token"] and time.time() < _gateway_token_cache["expires_at"] - 60:
+        logger.info("Using cached gateway token")
+        return _gateway_token_cache["token"]
+
+    try:
+        response = requests.post(
+            GATEWAY_CONFIG["token_endpoint"],
+            data={
+                "grant_type": "client_credentials",
+                "client_id": GATEWAY_CONFIG["client_id"],
+                "client_secret": GATEWAY_CONFIG["client_secret"],
+            },
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+            timeout=30,
+        )
+        response.raise_for_status()
+
+        token_data = response.json()
+        access_token = token_data["access_token"]
+        expires_in = token_data.get("expires_in", 3600)  # Default 1 hour
+
+        # Update cache
+        _gateway_token_cache["token"] = access_token
+        _gateway_token_cache["expires_at"] = time.time() + expires_in
+
+        logger.info(f"Gateway token obtained, expires in {expires_in}s")
+        return access_token
+
+    except requests.RequestException as e:
+        logger.error(f"Failed to obtain gateway token: {e}")
+        raise RuntimeError(f"Gateway authentication failed: {e}") from e
+
 
 app = BedrockAgentCoreApp()
 
@@ -438,28 +492,35 @@ async def main(payload):
     else:
         logger.warning(f"Skills directory not found at: {skills_path}")
 
+    # Get Gateway authentication token
+    gateway_token = None
+    try:
+        gateway_token = get_gateway_auth_token()
+        logger.info("Gateway authentication successful")
+    except Exception as e:
+        logger.warning(f"Gateway authentication failed, continuing without gateway: {e}")
+
+    # Build MCP servers config
+    mcp_servers_config = {
+        "codeint": code_int_mcp_server,
+        "browser": browser_mcp_server,
+    }
+
+    # Add Gateway if authentication succeeded
+    if gateway_token:
+        mcp_servers_config["gateway"] = {
+            "type": "http",
+            "url": GATEWAY_CONFIG["url"],
+            "headers": {"Authorization": f"Bearer {gateway_token}"}
+        }
+
     options = ClaudeAgentOptions(
-        mcp_servers={
-            "codeint": code_int_mcp_server,
-            "browser": browser_mcp_server,
-        },
+        mcp_servers=mcp_servers_config,
         model=model_name,
         cwd=os.getcwd(),  # Explicitly set working directory for Skills discovery
         setting_sources=["user", "project"],  # Enable loading Skills from filesystem
-        allowed_tools=[
-            "Skill",  # Enable Skills
-            "mcp__codeint__execute_code",
-            "mcp__codeint__execute_command",
-            "mcp__codeint__write_files",
-            "mcp__codeint__read_files",
-            # S3 Storage tools
-            "mcp__codeint__upload_to_s3",
-            "mcp__codeint__download_from_s3",
-            "mcp__codeint__list_s3_files",
-            "mcp__browser__search_web",
-            "mcp__browser__scrape_page",
-            "mcp__browser__take_screenshot",
-        ],
+        permission_mode="bypassPermissions",  # Allow all tools including dynamically discovered ones
+        # NOTE: allowed_tools removed to enable dynamic discovery of all gateway tools
         system_prompt=f"""You are an AI assistant that helps users with tasks associated with code generation, execution, and web automation.
 {stm_context}{ltm_context}{episodic_context}
   CRITICAL RULES:
@@ -498,6 +559,19 @@ async def main(payload):
     * Use for: Visual documentation, debugging, monitoring
     * Parameters: url, full_page, selector
     * Returns: Base64-encoded screenshot
+
+  ENTERPRISE GATEWAY (Dynamic Tool Discovery):
+  You are connected to an Enterprise Gateway that provides access to a large library of business tools.
+  You do not have all tools visible immediately. If a user asks for a task (e.g., 'check Jira tickets',
+  'get weather', 'list ServiceNow incidents') and you do not see a specific tool for it:
+
+  1. YOU MUST USE mcp__gateway__x_amz_bedrock_agentcore_search with a natural language query
+     describing what capability you need (e.g., "Jira ticket management", "weather information").
+  2. The search will return available tools that match your query.
+  3. Once you discover the correct tool, you can then use it to fulfill the user's request.
+
+  IMPORTANT: Always search the Gateway before saying you cannot do something. The Gateway may have
+  the exact tool you need.
 
   Your response should:
   1. Show the results
