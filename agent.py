@@ -1,6 +1,7 @@
 from code_int_mcp.server import code_int_mcp_server
 from browser_mcp.server import browser_mcp_server
 from claude_agent_sdk import (
+    AgentDefinition,
     AssistantMessage,
     UserMessage,
     ResultMessage,
@@ -436,6 +437,38 @@ async def store_turn(manager: MemorySessionManager, actor_id: str, session_id: s
         logger.warning("Failed to store turn: %s", e)
 
 
+def get_subagents(model_name: str) -> dict:
+    """Define sub-agents for parallel task execution.
+
+    Demonstrates the Claude Agent SDK sub-agent capability with two specialized agents
+    that can run tasks in parallel.
+    """
+    return {
+        "web-researcher": AgentDefinition(
+            description="Searches the web for information. Use for real-time data like prices, news, weather.",
+            prompt="""You are a web research specialist. Your job is to find accurate, up-to-date information from the web.
+
+When searching:
+- Use browser tools to search and scrape web pages
+- Extract the specific data requested
+- Report findings concisely with the source""",
+            tools=["mcp__browser__search_web", "mcp__browser__scrape_page"],
+            model="haiku",  # Explicitly set model
+        ),
+        "code-executor": AgentDefinition(
+            description="Executes Python code for calculations and data processing. Use for math, analysis, file operations.",
+            prompt="""You are a Python code execution specialist. Your job is to write and run Python code to solve computational tasks.
+
+When executing code:
+- Write clean, efficient Python
+- Use the code interpreter to run calculations
+- Return results clearly formatted""",
+            tools=["mcp__codeint__execute_code"],
+            model="haiku",  # Explicitly set model
+        ),
+    }
+
+
 @app.entrypoint
 async def main(payload):
     """
@@ -514,13 +547,20 @@ async def main(payload):
             "headers": {"Authorization": f"Bearer {gateway_token}"}
         }
 
+    # Get sub-agent definitions for parallel task execution
+    subagents = get_subagents(model_name)
+
     options = ClaudeAgentOptions(
         mcp_servers=mcp_servers_config,
         model=model_name,
         cwd=os.getcwd(),  # Explicitly set working directory for Skills discovery
         setting_sources=["user", "project"],  # Enable loading Skills from filesystem
         permission_mode="bypassPermissions",  # Allow all tools including dynamically discovered ones
-        # NOTE: allowed_tools removed to enable dynamic discovery of all gateway tools
+        # NOTE: allowed_tools is omitted to enable dynamic gateway tool discovery.
+        # If sub-agents are not being invoked, you may need to add:
+        #   allowed_tools=["Task", ...other tools...]
+        # The Task tool is required for sub-agent invocation per SDK docs.
+        agents=subagents,  # Enable parallel sub-agents (web-researcher, code-executor)
         system_prompt=f"""You are an AI assistant that helps users with tasks associated with code generation, execution, and web automation.
 {stm_context}{ltm_context}{episodic_context}
   CRITICAL RULES:
@@ -572,6 +612,32 @@ async def main(payload):
 
   IMPORTANT: Always search the Gateway before saying you cannot do something. The Gateway may have
   the exact tool you need.
+
+  SUB-AGENTS FOR PARALLEL EXECUTION:
+  You have access to specialized sub-agents that can run tasks in parallel:
+
+  - web-researcher: Searches the web for real-time information
+    * Use for: current prices, news, weather, live data
+    * Tools: browser search and scrape
+    * Example: "What is the current Bitcoin price?"
+
+  - code-executor: Runs Python code for calculations
+    * Use for: math, statistics, data processing, file operations
+    * Tools: code interpreter
+    * Example: "Calculate compound interest on $10,000"
+
+  WHEN TO USE PARALLEL SUB-AGENTS:
+  When a user request contains TWO OR MORE independent tasks connected by "AND",
+  "also", or similar, invoke the appropriate sub-agents in parallel:
+
+  Example request: "Get the current Bitcoin price AND calculate compound interest
+  on $10,000 at 5% for 10 years"
+
+  → Invoke web-researcher for Bitcoin price
+  → Invoke code-executor for compound interest calculation
+  → Both run simultaneously, then combine results
+
+  This is faster than doing tasks sequentially and demonstrates parallel execution.
 
   Your response should:
   1. Show the results
