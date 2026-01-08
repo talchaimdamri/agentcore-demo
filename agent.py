@@ -34,7 +34,7 @@ EPISODIC_MEMORY_CONFIG = {
 
 # AgentCore Gateway Configuration
 GATEWAY_CONFIG = {
-    "url": "https://gateway-quick-start-0a34be-4ozn33e0lx.gateway.bedrock-agentcore.eu-central-1.amazonaws.com/mcp",
+    "url": "https://gateway-quick-start-7f81ff-semantic-v2iirm5b4e.gateway.bedrock-agentcore.eu-central-1.amazonaws.com/mcp",
     "token_endpoint": "https://my-domain-0fnrf9sj.auth.eu-central-1.amazoncognito.com/oauth2/token",
     "client_id": "5ggtr7ctfontos361o09he4qdd",
     "client_secret": "1hohqppda5ainap4a5068a168k0qhu08nqs183jhpgi02g5889dh",
