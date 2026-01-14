@@ -1,0 +1,25 @@
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "AgentCoreAccess",
+            "Effect": "Allow",
+            "Action": [
+                "bedrock-agentcore:ListAgentRuntimes",
+                "bedrock-agentcore:GetAgentRuntime",
+                "bedrock-agentcore:InvokeAgentRuntime"
+            ],
+            "Resource": "*"
+        },
+        {
+            "Sid": "CloudWatchLogs",
+            "Effect": "Allow",
+            "Action": [
+                "logs:CreateLogGroup",
+                "logs:CreateLogStream",
+                "logs:PutLogEvents"
+            ],
+            "Resource": "arn:aws:logs:*:*:*"
+        }
+    ]
+}
